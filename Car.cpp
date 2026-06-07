@@ -3,6 +3,10 @@
 #include <cmath>
 #include <algorithm>
 
+namespace {
+    constexpr float kRoadHalfWidth = 7.8f;
+}
+
 Car::Car(glm::vec3 startPos) {
     Position = startPos;
     Yaw = 0.0f;
@@ -51,8 +55,19 @@ void Car::update(float deltaTime, int forwardBackward, int leftRight) {
     
     // Direction vector points along the Z-axis local to the car
     glm::vec3 direction(sin(yawRad), 0.0f, cos(yawRad));
-    
-    Position += direction * Speed * deltaTime;
+
+    float moveStep = Speed * deltaTime;
+    glm::vec3 nextPosition = Position + direction * moveStep;
+
+    // Keep the whole car inside the road bounds before committing the move.
+    float carHalfWidth = Size.x * 0.5f + 0.7f;
+    float minX = -kRoadHalfWidth + carHalfWidth;
+    float maxX =  kRoadHalfWidth - carHalfWidth;
+
+    if (nextPosition.x < minX) nextPosition.x = minX;
+    if (nextPosition.x > maxX) nextPosition.x = maxX;
+
+    Position = nextPosition;
 }
 
 glm::mat4 Car::GetModelMatrix() {

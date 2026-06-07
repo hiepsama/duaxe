@@ -13,6 +13,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cmath>
+#include <fstream>
 #include <stdio.h>
 
 extern "C" {
@@ -78,6 +79,35 @@ struct Obstacle {
     glm::vec3 size;
     glm::vec3 color;
 };
+
+enum class GameState { START, PLAYING, PAUSED, GAME_OVER };
+
+int loadHighScore()
+{
+    std::ifstream file("highscore.txt");
+    int highScore = 0;
+    if (file.is_open()) {
+        file >> highScore;
+    }
+    return highScore;
+}
+
+void saveHighScore(int highScore)
+{
+    std::ofstream file("highscore.txt", std::ios::trunc);
+    if (file.is_open()) {
+        file << highScore;
+    }
+}
+
+void resetRun(Car& car, std::vector<Obstacle>& obstacles, float& spawnZ, float& playTime, int& score)
+{
+    car = Car(glm::vec3(0.0f, 0.5f, 0.0f));
+    obstacles.clear();
+    spawnZ = 20.0f;
+    playTime = 0.0f;
+    score = 0;
+}
 
 int main()
 {
@@ -150,10 +180,14 @@ int main()
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
     
-    enum GameState { PLAYING, GAME_OVER };
-    GameState gameState = PLAYING;
+    GameState gameState = GameState::START;
     int score = 0;
+    int highScore = loadHighScore();
     float spawnZ = 20.0f;
+    float playTime = 0.0f;
+    bool enterWasDown = false;
+    bool pWasDown = false;
+    bool rWasDown = false;
 
     // render loop
     while (!glfwWindowShouldClose(window))
@@ -163,27 +197,57 @@ int main()
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        // input and reset
-        if (gameState == GAME_OVER && glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
-            gameState = PLAYING;
-            score = 0;
-            myCar = Car(glm::vec3(0.0f, 0.5f, 0.0f));
-            obstacles.clear();
-            spawnZ = 20.0f;
+        bool enterDown = glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS;
+        bool pDown = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+        bool rDown = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
+
+        // state transitions
+        if (gameState == GameState::START && enterDown && !enterWasDown) {
+            resetRun(myCar, obstacles, spawnZ, playTime, score);
+            gameState = GameState::PLAYING;
         }
 
-        if (gameState == PLAYING) {
+        if ((gameState == GameState::GAME_OVER || gameState == GameState::PAUSED) && rDown && !rWasDown) {
+            resetRun(myCar, obstacles, spawnZ, playTime, score);
+            gameState = GameState::PLAYING;
+        }
+
+        if (gameState == GameState::PLAYING && pDown && !pWasDown) {
+            gameState = GameState::PAUSED;
+        } else if (gameState == GameState::PAUSED && pDown && !pWasDown) {
+            gameState = GameState::PLAYING;
+        }
+
+        enterWasDown = enterDown;
+        pWasDown = pDown;
+        rWasDown = rDown;
+
+        if (gameState == GameState::PLAYING) {
             processInput(window, deltaTime, myCar);
+            playTime += deltaTime;
 
             // Score based on Z position
             score = (int)(myCar.Position.z);
             if (score < 0) score = 0;
 
+            if (score > highScore) {
+                highScore = score;
+                saveHighScore(highScore);
+            }
+
+            float progress = std::min(1.0f, score / 1500.0f);
+            myCar.MaxSpeed = 40.0f + progress * 18.0f;
+            myCar.Acceleration = 20.0f + progress * 6.0f;
+
             // Spawning logic (Endless running)
+            float spawnInterval = 28.0f - progress * 12.0f;
+            if (spawnInterval < 14.0f) spawnInterval = 14.0f;
+
             if (myCar.Position.z + 200.0f > spawnZ) {
                 Obstacle o;
-                // Road width is about ~20 units (-10 to 10)
-                o.position = glm::vec3((rand() % 16 - 8), 1.25f, spawnZ);
+                int lane = rand() % 3;
+                float laneX[3] = { -6.0f, 0.0f, 6.0f };
+                o.position = glm::vec3(laneX[lane], 1.25f, spawnZ);
                 // Curated obstacle type colors
                 int obstType = rand() % 4;
                 glm::vec3 colors[4] = {
@@ -192,10 +256,11 @@ int main()
                     glm::vec3(0.95f, 0.85f, 0.05f), // Yellow barricade
                     glm::vec3(0.9f,  0.3f,  0.0f)   // Warning orange
                 };
-                o.size = glm::vec3(1.8f + (rand() % 3), 2.5f + (rand() % 2), 1.5f + (rand() % 2));
+                o.size = glm::vec3(1.6f + (rand() % 3) * 0.4f, 2.2f + (rand() % 2) * 0.4f, 1.4f + (rand() % 2) * 0.3f);
+                o.size += glm::vec3(progress * 0.4f, progress * 0.2f, progress * 0.2f);
                 o.color = colors[obstType];
                 obstacles.push_back(o);
-                spawnZ += 25.0f + rand() % 30; // Random distance to next
+                spawnZ += spawnInterval + (rand() % 10);
             }
 
 
@@ -207,31 +272,42 @@ int main()
             // collision detection
             for(size_t i = 0; i < obstacles.size(); i++) {
                 if(myCar.checkCollision(obstacles[i].position, obstacles[i].size)) {
-                    gameState = GAME_OVER;
+                        gameState = GameState::GAME_OVER;
+                        if (score > highScore) {
+                            highScore = score;
+                            saveHighScore(highScore);
+                        }
                 }
             }
         }
 
-        // update camera relative to car
-        myCamera.update(myCar.Position, myCar.Yaw);
+            // update camera relative to car
+            myCamera.update(myCar.Position, myCar.Yaw);
         
         // Update Window Title
         char title[100];
-        if (gameState == PLAYING)
-            sprintf(title, "Racing Game 3D - Score: %d", score);
-        else
-            sprintf(title, "GAME OVER! Score: %d - Press R to Restart", score);
+            if (gameState == GameState::START)
+                sprintf(title, "Racing Game 3D - Press ENTER to Start | High Score: %d", highScore);
+            else if (gameState == GameState::PLAYING)
+                sprintf(title, "Racing Game 3D - Score: %d | High Score: %d | P to Pause", score, highScore);
+            else if (gameState == GameState::PAUSED)
+                sprintf(title, "PAUSED - Score: %d | High Score: %d | Press P or R", score, highScore);
+            else
+                sprintf(title, "GAME OVER! Score: %d | High Score: %d | Press R to Restart", score, highScore);
         glfwSetWindowTitle(window, title);
 
         // render
-        glClearColor(0.53f, 0.72f, 0.85f, 1.0f); // Sky blue
+            float skyFactor = std::min(1.0f, score / 2000.0f);
+            glClearColor(0.53f - skyFactor * 0.18f, 0.72f - skyFactor * 0.28f, 0.85f - skyFactor * 0.40f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // be sure to activate shader when setting uniforms/drawing objects
         lightingShader.use();
         lightingShader.setVec3("lightPos", lightPos);
         lightingShader.setVec3("viewPos", myCamera.Position);
-        lightingShader.setVec3("lightColor", lightColor);
+        glm::vec3 dynamicLight = lightColor;
+        dynamicLight *= (1.0f - skyFactor * 0.25f);
+        lightingShader.setVec3("lightColor", dynamicLight);
 
         // view/projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
