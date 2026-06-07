@@ -140,6 +140,12 @@ function carUpdate(dt,fb,lr){
   const yr=car.yaw*Math.PI/180;
   car.pos[0]+=Math.sin(yr)*car.speed*dt;
   car.pos[2]+=Math.cos(yr)*car.speed*dt;
+  
+  // Giới hạn xe trong đường
+  const roadHalfWidth = 9.5; 
+  const carHalfWidth = car.size[0] / 2;
+  if(car.pos[0] < -roadHalfWidth + carHalfWidth) car.pos[0] = -roadHalfWidth + carHalfWidth;
+  if(car.pos[0] > roadHalfWidth - carHalfWidth) car.pos[0] = roadHalfWidth - carHalfWidth;
 }
 
 function carBase(){

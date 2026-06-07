@@ -6,4 +6,4 @@ if (Test-Path $mingwBin) {
 }
 
 Set-Location $projectRoot
-g++.exe -Iinclude main.cpp Car.cpp Camera.cpp glad.c -Llib -static-libgcc -static-libstdc++ -lglfw3 -lgdi32 -lopengl32 -o RacingGame.exe 2>&1
+g++.exe -std=c++11 -Iinclude main.cpp Car.cpp Camera.cpp glad.c -Llib -static-libgcc -static-libstdc++ -lglfw3 -lgdi32 -lopengl32 -o RacingGame.exe 2>&1
