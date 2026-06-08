@@ -52,7 +52,7 @@ out vec3 FragPos;out vec3 Normal;
 uniform mat4 model,view,projection;
 void main(){
   FragPos=vec3(model*vec4(aPos,1.0));
-  Normal=mat3(transpose(inverse(mat3(model))))*aNormal;
+  Normal=mat3(model)*aNormal;
   gl_Position=projection*view*vec4(FragPos,1.0);
 }`;
 const FS=`#version 300 es
@@ -224,8 +224,8 @@ function drawObstacles(){
   for(const o of obstacles){
     let m=mat4.create();mat4.translate(m,m,o.pos);mat4.scale(m,m,o.size);
     setM4(uModel,m);setV3(uOC,...o.color);drawCube();
-    m=mat4.create();mat4.translate(m,m,[o.pos[0],-.3,o.pos[2]]);
-    mat4.scale(m,m,[o.size[0]*1.1,.25,o.size[2]*1.1]);
+    m=mat4.create();mat4.translate(m,m,[o.pos[0],0.01,o.pos[2]]);
+    mat4.scale(m,m,[o.size[0]*1.1,.02,o.size[2]*1.1]);
     setM4(uModel,m);setV3(uOC,.1,.1,.1);drawCube();
   }
 }

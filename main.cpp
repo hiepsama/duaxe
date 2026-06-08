@@ -372,10 +372,10 @@ int main()
 
             // Dark base/shadow strip under obstacle
             glm::vec3 basePos = obstacles[i].position;
-            basePos.y = -0.3f;
+            basePos.y = 0.01f;
             model = glm::mat4(1.0f);
             model = glm::translate(model, basePos);
-            model = glm::scale(model, glm::vec3(obstacles[i].size.x * 1.1f, 0.25f, obstacles[i].size.z * 1.1f));
+            model = glm::scale(model, glm::vec3(obstacles[i].size.x * 1.1f, 0.02f, obstacles[i].size.z * 1.1f));
             lightingShader.setMat4("model", model);
             lightingShader.setVec3("objectColor", 0.1f, 0.1f, 0.1f);
             glDrawArrays(GL_TRIANGLES, 0, 36);
